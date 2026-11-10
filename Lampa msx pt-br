@@ -1,0 +1,119 @@
+
+(function () {
+    'use strict';
+
+    var KEY = 'lampa_exclusivo_ptbr_v3';
+
+    if (window[KEY]) return;
+    window[KEY] = true;
+
+    var active = false;
+    var done = false;
+    var video = null;
+
+    function language(track) {
+        return String(
+            track.language ||
+            track.lang ||
+            track.label ||
+            track.name || ''
+        ).toLowerCase().replace(/_/g, '-');
+    }
+
+    function isPTBR(track) {
+        var lang = language(track);
+
+        return /(^|[- ])pt-br($|[- ])/.test(lang) ||
+               /(^|[- ])pob($|[- ])/.test(lang) ||
+               /brazil|brasileir/.test(lang);
+    }
+
+    function isPortugueseSubtitle(track) {
+        var lang = language(track);
+
+        return isPTBR(track) ||
+               lang === 'pt' ||
+               lang.indexOf('pt-pt') === 0 ||
+               lang === 'por' ||
+               lang.indexOf('portugu') !== -1;
+    }
+
+    function chooseTracks() {
+        if (!active || done) return;
+
+        video = Lampa.PlayerVideo.video();
+
+        if (!video) return;
+
+        var audios = video.audioTracks;
+
+        if (audios && audios.length) {
+            var foundAudio = false;
+
+            for (var i = 0; i < audios.length; i++) {
+                if (isPTBR(audios[i])) {
+                    for (var j = 0; j < audios.length; j++) {
+                        audios[j].enabled = j === i;
+                    }
+
+                    foundAudio = true;
+                    break;
+                }
+            }
+
+            if (!foundAudio) {
+                console.log(
+                    '[PTBR] Não foi encontrada faixa de áudio brasileira.'
+                );
+            }
+        }
+
+        var subtitles = video.textTracks;
+
+        if (subtitles && subtitles.length) {
+            for (var s = 0; s < subtitles.length; s++) {
+                if (isPortugueseSubtitle(subtitles[s])) {
+                    subtitles[s].mode = 'showing';
+                    break;
+                }
+            }
+        }
+
+        done = true;
+
+        console.log('[PTBR] Verificação de idioma concluída.');
+    }
+
+    function start() {
+        active = true;
+        done = false;
+    }
+
+    function destroy() {
+        active = false;
+        done = false;
+        video = null;
+    }
+
+    function init() {
+        if (!Lampa.Player || !Lampa.PlayerVideo) return;
+
+        Lampa.Player.listener.follow('start', start);
+        Lampa.Player.listener.follow('destroy', destroy);
+
+        Lampa.PlayerVideo.listener.follow(
+            'canplay',
+            chooseTracks
+        );
+
+        console.log('[Lampa Exclusivo PT-BR] Ativado.');
+    }
+
+    if (window.appready) {
+        init();
+    } else {
+        Lampa.Listener.follow('app', function (event) {
+            if (event.type === 'ready') init();
+        });
+    }
+})();
